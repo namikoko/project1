@@ -1093,6 +1093,7 @@ function showXPopup() {
     "your session is being recorded","you agreed to this","closing is not an option","please remain engaged"];
   var popups = document.getElementById("fpop");
   if (!popups) return;
+  new Audio("Sound/popup.mp3").play().catch(function(){});
   var p = document.createElement("div");
   p.style.cssText = "position:absolute;right:" + (20+Math.random()*60) + "px;top:" + (40+Math.random()*50) + "px;font-size:10px;color:rgba(0,0,0,0.35);font-family:'Schibsted Grotesk',sans-serif;opacity:0;transition:opacity 0.3s;pointer-events:none;letter-spacing:0.03em;";
   p.textContent = msgs[Math.floor(Math.random() * msgs.length)];
