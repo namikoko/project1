@@ -411,6 +411,13 @@ function startAdBreak() {
   adDuration = random(4000, 6000);
   adCount++;
 
+  // Play glitch sound — duration matches adDuration
+  var glitchSnd = new Audio("Sound/glitch.mp3");
+  glitchSnd.volume = 0.8;
+  glitchSnd.play().catch(function(){});
+  // Stop the glitch sound exactly when ad ends
+  setTimeout(function(){ glitchSnd.pause(); }, adDuration);
+
   // Build realistic ad cards (2-4 ads)
   adSlots = [];
   let numAds = floor(random(2, 5));
@@ -770,7 +777,12 @@ function drawAdBreak() {
 
   // End ad
   if (adElapsed >= adDuration) {
-    adActive = false;
+    if (adCount >= 4) {
+      // Last glitch — skip straight to GOODBYE, never show crossword or feed
+      window.location.href = "level4.html?goodbye=1";
+    } else {
+      adActive = false;
+    }
   }
 }
 
@@ -778,6 +790,7 @@ function drawAdBreak() {
 // ATTENTION POPUPS — RED with corner brackets
 // ============================================================
 function spawnAttentionPopup() {
+  new Audio("Sound/popup.mp3").play().catch(function(){});
   let msg = ATTENTION_MSGS[floor(random(ATTENTION_MSGS.length))];
 
   push();

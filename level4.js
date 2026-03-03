@@ -192,6 +192,19 @@ function setup() {
   stateTimer = millis();
   noCursor();
 
+  // Coming from level 3's last glitch — skip straight to GOODBYE
+  if (window.location.search.indexOf("goodbye=1") !== -1) {
+    state = "GOODBYE";
+    goodbyeTimer = millis();
+    stateTimer = millis();
+    // Still need input/submit elements created (restartFromBeginning uses them)
+    inputField = createElement("textarea");
+    inputField.style("display", "none");
+    submitBtn = createButton("submit");
+    submitBtn.style("display", "none");
+    return;
+  }
+
   inputField = createElement("textarea");
   inputField.attribute("placeholder", "type here...");
   inputField.attribute("maxlength", "500");
@@ -817,6 +830,14 @@ function buildFeedDOM() {
     currentCardIndex = 0;
     showFeedOverlay(0);
 
+    // Final level background song
+    var finalSong = new Audio("Sound/final song.mp3");
+    finalSong.id = "finalsong";
+    finalSong.loop = true;
+    finalSong.volume = 0.5;
+    finalSong.play().catch(function(){});
+    window._finalSong = finalSong;
+
     requestAnimationFrame(flickerLoop);
     startLiveCounters();
     feedAnimFrame = setTimeout(advanceCard, nextDelay());
@@ -956,6 +977,11 @@ function advanceCard() {
   currentCardIndex++;
   var vh = window.innerHeight;
 
+  // Scroll sound between videos
+  var scrollSnd = new Audio("Sound/scroll.mp3");
+  scrollSnd.volume = 0.35;
+  scrollSnd.play().catch(function(){});
+
   // Scroll transition speed also accelerates — snappier at high speed
   var delay = nextDelay();
   var transMs = Math.max(120, Math.min(550, delay * 0.55));
@@ -995,11 +1021,35 @@ function triggerGlitchEruption() {
     return;
   }
 
+  // Stop final song
+  if (window._finalSong) { window._finalSong.pause(); window._finalSong = null; }
+
   // Create a full-screen eruption layer on top of everything
   var eruptLayer = document.createElement("div");
   eruptLayer.id = "ferupt";
   eruptLayer.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;z-index:999999;pointer-events:none;overflow:hidden;";
   document.body.appendChild(eruptLayer);
+
+  // Play final glitch sound — let it run to its natural end
+  var glitchSnd = new Audio("Sound/finalglitch.mp3");
+  glitchSnd.volume = 0.85;
+  glitchSnd.play().catch(function(){});
+
+  // Calculate total eruption duration to align with sound
+  // totalFlashes * avg interval ≈ eruption length
+  var totalFlashes = 14 + adSlides.length * 2;
+  var baseInterval = 160;
+  var estimatedDuration = 0;
+  for (var f = 0; f < totalFlashes; f++) {
+    estimatedDuration += Math.max(45, baseInterval - f * 10);
+  }
+  estimatedDuration += 650; // lifespan of last flash
+
+  // If glitch sound ends before eruption, stop eruption to match
+  glitchSnd.addEventListener("ended", function() {
+    eruptLayer.remove();
+    _endFeedToGoodbye();
+  });
 
   var totalFlashes = 14 + adSlides.length * 2; // feels overwhelming
   var flashCount = 0;
@@ -1007,11 +1057,9 @@ function triggerGlitchEruption() {
 
   function fireFlash() {
     if (flashCount >= totalFlashes) {
-      // Done — clear layer, go GOODBYE
-      setTimeout(function() {
-        eruptLayer.remove();
-        _endFeedToGoodbye();
-      }, 350);
+      // Flashes done — wait for glitch sound to finish naturally (handled by "ended" event)
+      // Fallback: if sound already ended, go to goodbye
+      if (!eruptLayer.parentNode) return;
       return;
     }
 
@@ -1077,6 +1125,7 @@ function _endFeedToGoodbye() {
 function cleanupFeed() {
   if (feedAnimFrame) clearTimeout(feedAnimFrame);
   feedAnimFrame = null;
+  if (window._finalSong) { window._finalSong.pause(); window._finalSong = null; }
   for (var i = 0; i < likeCounters.length; i++) clearTimeout(likeCounters[i]);
   likeCounters = [];
   cardData = [];
@@ -1093,6 +1142,7 @@ function showXPopup() {
     "your session is being recorded","you agreed to this","closing is not an option","please remain engaged"];
   var popups = document.getElementById("fpop");
   if (!popups) return;
+  new Audio("Sound/error.mp3").play().catch(function(){});
   new Audio("Sound/popup.mp3").play().catch(function(){});
   var p = document.createElement("div");
   p.style.cssText = "position:absolute;right:" + (20+Math.random()*60) + "px;top:" + (40+Math.random()*50) + "px;font-size:10px;color:rgba(0,0,0,0.35);font-family:'Schibsted Grotesk',sans-serif;opacity:0;transition:opacity 0.3s;pointer-events:none;letter-spacing:0.03em;";
