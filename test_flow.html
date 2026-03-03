@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+</head>
+<body>
+<div id="debug" style="position:fixed;bottom:10px;left:10px;font-size:12px;background:#fff;padding:10px;border:1px solid #000;z-index:10000;"></div>
+<script>
+var state = "TITLE";
+var stateTimer = 0;
+
+function setup() {
+  createCanvas(800, 600);
+  stateTimer = millis();
+}
+
+function draw() {
+  background(255);
+  
+  var debug = document.getElementById("debug");
+  debug.innerHTML = "State: " + state + "<br>Time: " + (millis() - stateTimer) + "ms";
+  
+  fill(0);
+  textSize(24);
+  textAlign(CENTER, CENTER);
+  text("State: " + state, width/2, height/2);
+  
+  if (state === "TITLE") {
+    if (millis() - stateTimer > 500) {
+      text("Click to continue", width/2, height/2 + 50);
+    }
+  }
+}
+
+function mousePressed() {
+  if (state === "TITLE") {
+    state = "FEED";
+    stateTimer = millis();
+    
+    // Show feed
+    var feedContainer = document.createElement("div");
+    feedContainer.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:#fff;z-index:9999;";
+    feedContainer.innerHTML = "<div style='position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);'>FEED WORKS!</div>";
+    document.body.appendChild(feedContainer);
+    
+    // Hide p5 canvas
+    var cnv = document.querySelector("canvas");
+    if (cnv) cnv.style.display = "none";
+  }
+}
+</script>
+</body>
+</html>
