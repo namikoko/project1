@@ -146,9 +146,9 @@ var METRICS = [
 function buildFullImageList() {
   // Start with your exact 14 in order
   var list = IMAGE_ORDER.slice();
-  // Collect remaining
+  // Collect remaining (only up to 25, that's what exists)
   var remaining = [];
-  for (var i = 2; i <= 45; i++) {
+  for (var i = 2; i <= 25; i++) {
     var name = "image copy " + i + ".png";
     if (IMAGE_ORDER.indexOf(name) === -1) remaining.push(name);
   }
@@ -380,40 +380,24 @@ function preloadAllImages(callback) {
   preloadTotal = allImageNames.length;
   preloadCount = 0;
 
-  console.log("Starting preload of", preloadTotal, "images");
-
-  if (preloadTotal === 0) {
-    console.warn("No images in list!");
-    callback();
-    return;
-  }
-
   var allLoaded = function() {
-    if (preloadCount >= preloadTotal) {
-      console.log("Preload finished. Loaded:", Object.keys(preloadedImages).length, "images");
-      callback();
-    }
+    if (preloadCount >= preloadTotal) callback();
   };
 
   for (var i = 0; i < allImageNames.length; i++) {
-    (function(name, idx) {
+    (function(name) {
       var img = new Image();
-      img.crossOrigin = "anonymous";
       img.onload = function() {
-        console.log("Loaded image", idx, ":", name);
         preloadedImages[name] = img;
         preloadCount++;
         allLoaded();
       };
-      img.onerror = function(e) {
-        console.log("Failed to load image", idx, ":", name, e);
+      img.onerror = function() {
         preloadCount++;
         allLoaded();
       };
-      var src = "videos/" + name.replace(/ /g, "%20");
-      console.log("Loading:", src);
-      img.src = src;
-    })(allImageNames[i], i);
+      img.src = "videos/" + name.replace(/ /g, "%20");
+    })(allImageNames[i]);
   }
 }
 
@@ -465,167 +449,375 @@ function renderGrid(grid, canvas, cols, rows, cw, ch, frame) {
 }
 
 // ============================================================
-// BUILD FEED — TikTok style: centered card, autoscroll between images
+// BUILD FEED — TikTok style: full-screen cards that SLIDE UP
+// with live like counts, action bar, interstitial ads, floating hearts
 // ============================================================
-var cardData = []; // { grid, canvas, cols, rows, cw, ch, frame }
+var cardData = [];
 var currentCardIndex = 0;
+var isScrolling = false;
+var likeCounters = []; // live like counter timeouts
 
+var USERNAMES = [
+  "@user_38291","@xo_content","@real.human.38","@not_a_bot_lol",
+  "@ur.fav.algo","@content.machine","@optimized.u","@data.node.77",
+  "@verified.user","@the.feed.goes","@scroll.forever","@ur.still.here"
+];
+var HASHTAGS = [
+  "#foryou #fyp #trending","#viral #relatable #mood",
+  "#optimized #content #feed","#youcantstop #scrolling #fy",
+  "#recommended #foryoupage #data","#thiswasmadefoyu #watch #stay",
+  "#engagement #retention #views","#algorithm #recommended #you"
+];
+var SONGS = [
+  "♪ original sound - user_38291","♪ trending audio - optimized",
+  "♪ for you - the algorithm","♪ you can't skip this - feed",
+  "♪ still watching - content.co","♪ recommended - system_audio",
+  "♪ auto-play - retention_mix","♪ loop forever - data.wav"
+];
 function buildFeedDOM() {
   if (feedBuilt) return;
   feedBuilt = true;
   cardData = [];
   currentCardIndex = 0;
+  isScrolling = false;
 
-  // Kill p5 canvas immediately
-  var cnv = document.querySelector("canvas");
-  if (cnv) {
-    cnv.style.display = "none !important";
-    cnv.style.visibility = "hidden !important";
-    cnv.style.pointerEvents = "none !important";
-    cnv.style.width = "0px !important";
-    cnv.style.height = "0px !important";
-  }
+  // Kill p5 canvas
+  var p5cnv = document.querySelector("canvas");
+  if (p5cnv) { p5cnv.style.display = "none"; p5cnv.style.visibility = "hidden"; }
 
-  // Container — full viewport, white bg
+  // Full-screen white container — this is the viewport
   feedContainer = document.createElement("div");
   feedContainer.id = "fc";
-  feedContainer.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:#fff;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;";
+  feedContainer.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:#fff;z-index:99999;overflow:hidden;font-family:'Schibsted Grotesk',sans-serif;";
   document.body.appendChild(feedContainer);
+
+  // The scrolling track
+  var track = document.createElement("div");
+  track.id = "ftrack";
+  track.style.cssText = "position:absolute;top:0;left:0;width:100%;will-change:transform;";
+  feedContainer.appendChild(track);
+
+  // Progress bar (top)
+  var prog = document.createElement("div");
+  prog.id = "fp";
+  prog.style.cssText = "position:fixed;top:0;left:0;height:2px;background:rgba(0,0,0,0.18);z-index:100010;width:0%;transition:width 0.4s linear;";
+  document.body.appendChild(prog);
+
+  // Popup/overlay layer
+  var popups = document.createElement("div");
+  popups.id = "fpop";
+  popups.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:100020;";
+  document.body.appendChild(popups);
 
   // X button
   var xBtn = document.createElement("div");
+  xBtn.id = "fxbtn";
   xBtn.innerHTML = "\u2715";
-  xBtn.style.cssText = "position:fixed;top:20px;right:24px;z-index:10010;width:32px;height:32px;border-radius:50%;border:1px solid rgba(0,0,0,0.15);color:rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer;background:rgba(255,255,255,0.9);font-family:'Schibsted Grotesk',sans-serif;";
+  xBtn.style.cssText = "position:fixed;top:18px;right:22px;z-index:100010;width:30px;height:30px;border-radius:50%;border:1px solid rgba(0,0,0,0.12);color:rgba(0,0,0,0.2);display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;background:#fff;font-family:'Schibsted Grotesk',sans-serif;";
   xBtn.onclick = function(e) { e.stopPropagation(); showXPopup(); };
   document.body.appendChild(xBtn);
 
-  // Progress bar
-  var prog = document.createElement("div");
-  prog.id = "fp";
-  prog.style.cssText = "position:fixed;top:0;left:0;height:2px;background:rgba(0,0,0,0.12);z-index:10010;width:0%;transition:width 0.5s linear;";
-  document.body.appendChild(prog);
+  // Loading indicator
+  var loader = document.createElement("div");
+  loader.id = "fload";
+  loader.style.cssText = "position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:10px;color:rgba(0,0,0,0.15);font-family:'Schibsted Grotesk',sans-serif;letter-spacing:0.12em;";
+  loader.textContent = "LOADING";
+  feedContainer.appendChild(loader);
 
-  // Popup layer
-  var popups = document.createElement("div");
-  popups.id = "fpop";
-  popups.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10020;";
-  document.body.appendChild(popups);
-
-  // Caption overlay
-  var captionOverlay = document.createElement("div");
-  captionOverlay.id = "fcap";
-  captionOverlay.style.cssText = "position:fixed;bottom:40px;left:50%;transform:translateX(-50%);z-index:10005;text-align:center;";
-  document.body.appendChild(captionOverlay);
-
-  // Preload then build
   preloadAllImages(function() {
-    var cardW = Math.min(500, window.innerWidth - 40);
-    var cardH = Math.round(cardW * 0.56);
-    var cw = 7, ch = 11;
+    var l = document.getElementById("fload");
+    if (l) l.remove();
+
+    var vw = window.innerWidth;
+    var vh = window.innerHeight;
+
+    var cardW = Math.min(390, vw - 32);
+    var cardH = Math.round(cardW * 1.45);
+    if (cardH > vh - 140) { cardH = vh - 140; cardW = Math.round(cardH / 1.45); }
+
+    var cw = 6, ch = 10;
     var cols = Math.floor(cardW / cw);
     var rows = Math.floor(cardH / ch);
 
-    var loadedCount = 0;
+    var ftrack = document.getElementById("ftrack");
+    ftrack.style.cssText = "position:absolute;top:0;left:0;width:100%;display:flex;flex-direction:column;will-change:transform;";
+
     for (var i = 0; i < allImageNames.length; i++) {
-      var name = allImageNames[i];
-      var img = preloadedImages[name];
+      var img = preloadedImages[allImageNames[i]];
       if (!img) continue;
-      loadedCount++;
 
+      var likesBase = Math.floor(Math.random()*480 + 12);
+      var commentsBase = Math.floor(Math.random()*120 + 3);
+      var sharesBase = Math.floor(Math.random()*80 + 1);
+      var username = USERNAMES[i % USERNAMES.length];
+      var hashtag = HASHTAGS[i % HASHTAGS.length];
+      var song = SONGS[i % SONGS.length];
+      var caption = CAPTIONS[i % CAPTIONS.length];
+
+      // shared mutable state for this card's numbers
+      var cardNums = { likes: likesBase, comments: commentsBase, shares: sharesBase, viewers: Math.floor(Math.random()*8000+400) };
+
+      // Full-screen slide
+      var slide = document.createElement("div");
+      slide.style.cssText = "width:100%;height:"+vh+"px;display:flex;align-items:center;justify-content:center;background:#fff;flex-shrink:0;position:relative;overflow:hidden;";
+
+      // ASCII canvas
       var cv = document.createElement("canvas");
-      cv.width = cardW * 2;
-      cv.height = cardH * 2;
-      cv.style.cssText = "display:none;width:" + cardW + "px;height:" + cardH + "px;border:1px solid rgba(0,0,0,0.1);";
+      cv.className = "feed-card";
+      cv.width  = cols * cw * 2;
+      cv.height = rows * ch * 2;
+      cv.style.cssText = "position:static !important;display:block;width:"+cardW+"px;height:"+cardH+"px;flex-shrink:0;";
 
-      try {
-        var grid = imageToAsciiGrid(img, cols, rows);
-        renderGrid(grid, cv, cols, rows, cw, ch, 0);
-        cardData.push({ grid: grid, canvas: cv, cols: cols, rows: rows, cw: cw, ch: ch, frame: 0, caption: CAPTIONS[i % CAPTIONS.length], likes: Math.random()*500+10 });
-        feedContainer.appendChild(cv);
-      } catch (e) {
-        console.error("Error converting image:", name, e);
-      }
-    }
-    
-    // Show first card
-    if (cardData.length > 0) {
-      cardData[0].canvas.style.display = "block";
-      updateCaption(0);
+      var grid = imageToAsciiGrid(img, cols, rows);
+      renderGrid(grid, cv, cols, rows, cw, ch, 0);
+      slide.appendChild(cv);
+
+      // ── RIGHT ACTION BAR (like TikTok right side) ──
+      var bar = document.createElement("div");
+      bar.style.cssText = "position:absolute;right:14px;bottom:90px;display:flex;flex-direction:column;align-items:center;gap:18px;z-index:10;";
+
+      // Like button + live counter
+      var likeWrap = document.createElement("div");
+      likeWrap.style.cssText = "display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;";
+      var likeHeart = document.createElement("div");
+      likeHeart.style.cssText = "font-size:26px;line-height:1;transition:transform 0.15s;user-select:none;";
+      likeHeart.textContent = "♡";
+      var likeNum = document.createElement("div");
+      likeNum.style.cssText = "font-size:9px;color:rgba(0,0,0,0.35);letter-spacing:0.04em;font-family:'Schibsted Grotesk',sans-serif;min-width:30px;text-align:center;";
+      likeNum.textContent = cardNums.likes + "K";
+      likeWrap.onclick = (function(lh, ln, nums) {
+        return function() {
+          lh.textContent = "♥"; lh.style.transform = "scale(1.4)";
+          lh.style.color = "#000";
+          setTimeout(function(){ lh.style.transform = "scale(1)"; }, 200);
+          nums.likes += Math.floor(Math.random()*3+1);
+          ln.textContent = nums.likes + "K";
+          spawnFloatingHeart();
+        };
+      })(likeHeart, likeNum, cardNums);
+      likeWrap.appendChild(likeHeart); likeWrap.appendChild(likeNum);
+
+      // Comment button
+      var cmtWrap = document.createElement("div");
+      cmtWrap.style.cssText = "display:flex;flex-direction:column;align-items:center;gap:3px;";
+      var cmtIcon = document.createElement("div");
+      cmtIcon.style.cssText = "font-size:22px;line-height:1;color:rgba(0,0,0,0.5);";
+      cmtIcon.textContent = "◎";
+      var cmtNum = document.createElement("div");
+      cmtNum.style.cssText = "font-size:9px;color:rgba(0,0,0,0.35);letter-spacing:0.04em;font-family:'Schibsted Grotesk',sans-serif;";
+      cmtNum.textContent = cardNums.comments + "";
+      cmtWrap.appendChild(cmtIcon); cmtWrap.appendChild(cmtNum);
+
+      // Share button
+      var shrWrap = document.createElement("div");
+      shrWrap.style.cssText = "display:flex;flex-direction:column;align-items:center;gap:3px;";
+      var shrIcon = document.createElement("div");
+      shrIcon.style.cssText = "font-size:20px;line-height:1;color:rgba(0,0,0,0.5);";
+      shrIcon.textContent = "↗";
+      var shrNum = document.createElement("div");
+      shrNum.style.cssText = "font-size:9px;color:rgba(0,0,0,0.35);letter-spacing:0.04em;font-family:'Schibsted Grotesk',sans-serif;";
+      shrNum.textContent = cardNums.shares + "";
+      shrWrap.appendChild(shrIcon); shrWrap.appendChild(shrNum);
+
+      // Spinning disc avatar
+      var disc = document.createElement("div");
+      disc.style.cssText = "width:36px;height:36px;border-radius:50%;border:1.5px solid rgba(0,0,0,0.15);display:flex;align-items:center;justify-content:center;font-size:16px;animation:spinDisc 4s linear infinite;";
+      disc.textContent = "♫";
+
+      bar.appendChild(likeWrap);
+      bar.appendChild(cmtWrap);
+      bar.appendChild(shrWrap);
+      bar.appendChild(disc);
+      slide.appendChild(bar);
+
+      // ── BOTTOM OVERLAY: username + caption + song ──
+      var bottomInfo = document.createElement("div");
+      bottomInfo.style.cssText = "position:absolute;left:14px;bottom:28px;max-width:calc(100% - 80px);z-index:10;";
+
+      var usernameEl = document.createElement("div");
+      usernameEl.style.cssText = "font-size:11px;font-weight:700;color:rgba(0,0,0,0.55);letter-spacing:0.03em;font-family:'Schibsted Grotesk',sans-serif;margin-bottom:3px;";
+      usernameEl.textContent = username;
+
+      var captionEl2 = document.createElement("div");
+      captionEl2.style.cssText = "font-size:9px;color:rgba(0,0,0,0.38);letter-spacing:0.04em;font-family:'Schibsted Grotesk',sans-serif;margin-bottom:4px;line-height:1.5;";
+      captionEl2.textContent = caption;
+
+      var hashEl = document.createElement("div");
+      hashEl.style.cssText = "font-size:9px;color:rgba(0,0,0,0.28);letter-spacing:0.05em;font-family:'Schibsted Grotesk',sans-serif;margin-bottom:5px;";
+      hashEl.textContent = hashtag;
+
+      var songEl = document.createElement("div");
+      songEl.style.cssText = "font-size:8px;color:rgba(0,0,0,0.22);letter-spacing:0.04em;font-family:'Schibsted Grotesk',sans-serif;display:flex;align-items:center;gap:4px;";
+      songEl.textContent = song;
+
+      bottomInfo.appendChild(usernameEl);
+      bottomInfo.appendChild(captionEl2);
+      bottomInfo.appendChild(hashEl);
+      bottomInfo.appendChild(songEl);
+      slide.appendChild(bottomInfo);
+
+      // ── LIVE VIEWER COUNT (top left, animated) ──
+      var viewWrap = document.createElement("div");
+      viewWrap.style.cssText = "position:absolute;top:18px;left:14px;z-index:10;display:flex;align-items:center;gap:5px;";
+      var viewDot = document.createElement("div");
+      viewDot.style.cssText = "width:6px;height:6px;border-radius:50%;background:rgba(0,0,0,0.25);animation:pulseDot 1.2s ease-in-out infinite;";
+      var viewCount = document.createElement("div");
+      viewCount.style.cssText = "font-size:9px;color:rgba(0,0,0,0.25);letter-spacing:0.06em;font-family:'Schibsted Grotesk',sans-serif;";
+      viewCount.textContent = cardNums.viewers.toLocaleString() + " watching";
+      viewWrap.appendChild(viewDot); viewWrap.appendChild(viewCount);
+      slide.appendChild(viewWrap);
+
+      ftrack.appendChild(slide);
+
+      cardData.push({
+        grid: grid, canvas: cv, slide: slide,
+        cols: cols, rows: rows, cw: cw, ch: ch,
+        frame: 0,
+        caption: caption, username: username,
+        likeNum: likeNum, cmtNum: cmtNum, viewCount: viewCount,
+        nums: cardNums
+      });
     }
 
-    // Start animation & scroll loops
-    requestAnimationFrame(animateCards);
+    if (cardData.length === 0) return;
+
+    // Inject keyframes for spinning disc, pulsing dot, and number bounce
+    injectFeedStyles();
+
+    feedStartTime = Date.now();
+    currentCardIndex = 0;
+    showFeedOverlay(0);
+
+    requestAnimationFrame(flickerLoop);
+    startLiveCounters();
+    feedAnimFrame = setTimeout(advanceCard, 3000);
   });
-
-  feedStartTime = Date.now();
-  feedScrollY = 0;
-  requestAnimationFrame(scrollFeed);
 }
 
-// Update caption for current card
-function updateCaption(idx) {
-  if (idx >= cardData.length) return;
-  var cap = document.getElementById("fcap");
-  if (!cap) return;
-  var d = cardData[idx];
-  cap.innerHTML = "<div style=\"font-size:8px;color:rgba(0,0,0,0.12);letter-spacing:0.05em;font-family:'Schibsted Grotesk',sans-serif;\"><div>" + d.caption + "</div><div>" + d.likes.toFixed(1) + "K</div></div>";
+function injectFeedStyles() {
+  if (document.getElementById("feedkf")) return;
+  var s = document.createElement("style");
+  s.id = "feedkf";
+  s.textContent = [
+    "@keyframes spinDisc { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }",
+    "@keyframes pulseDot { 0%,100%{opacity:0.3;transform:scale(1)} 50%{opacity:1;transform:scale(1.4)} }",
+    "@keyframes numBounce { 0%{transform:translateY(0)} 30%{transform:translateY(-5px)} 60%{transform:translateY(2px)} 100%{transform:translateY(0)} }",
+    "@keyframes heartFloat { 0%{opacity:1;transform:translateY(0) scale(1)} 100%{opacity:0;transform:translateY(-120px) scale(1.6)} }"
+  ].join("\n");
+  document.head.appendChild(s);
 }
 
-// Single animation loop for all cards
-function animateCards() {
+// Show the HUD overlay for the current card (progress dots, etc.)
+function showFeedOverlay(idx) {
+  // nothing persistent needed here — bottom info & action bar live inside each slide
+}
+
+// Animate live viewer counts on current card randomly
+function startLiveCounters() {
+  function tick() {
+    if (state !== "FEED") return;
+    var d = cardData[currentCardIndex];
+    if (d && d.viewCount) {
+      var delta = Math.floor(Math.random()*80) - 30;
+      d.nums.viewers = Math.max(10, d.nums.viewers + delta);
+      d.viewCount.textContent = d.nums.viewers.toLocaleString() + " watching";
+    }
+    if (d && d.likeNum && Math.random() < 0.35) {
+      d.nums.likes += Math.floor(Math.random()*3);
+      d.likeNum.textContent = d.nums.likes + "K";
+      d.likeNum.style.animation = "none";
+      void d.likeNum.offsetWidth;
+      d.likeNum.style.animation = "numBounce 0.35s ease";
+    }
+    if (d && d.cmtNum && Math.random() < 0.18) {
+      d.nums.comments += 1;
+      d.cmtNum.textContent = d.nums.comments + "";
+      d.cmtNum.style.animation = "none";
+      void d.cmtNum.offsetWidth;
+      d.cmtNum.style.animation = "numBounce 0.3s ease";
+    }
+    likeCounters.push(setTimeout(tick, 800 + Math.random()*700));
+  }
+  likeCounters.push(setTimeout(tick, 1200));
+}
+
+// Float a heart up from the right action bar area
+function spawnFloatingHeart() {
+  var popups = document.getElementById("fpop");
+  if (!popups) return;
+  var h = document.createElement("div");
+  var vw = window.innerWidth;
+  var vh = window.innerHeight;
+  h.style.cssText = "position:absolute;right:"+(18+Math.random()*40)+"px;bottom:"+(80+Math.random()*60)+"px;font-size:"+(18+Math.random()*16)+"px;opacity:1;pointer-events:none;animation:heartFloat "+(1.2+Math.random()*0.8)+"s ease-out forwards;";
+  h.textContent = "♥";
+  popups.appendChild(h);
+  setTimeout(function(){ h.remove(); }, 2200);
+}
+
+// Auto-spawn hearts on the current card periodically
+function autoHeartLoop() {
+  if (state !== "FEED") return;
+  if (Math.random() < 0.5) spawnFloatingHeart();
+  setTimeout(autoHeartLoop, 600 + Math.random()*1200);
+}
+setTimeout(autoHeartLoop, 3500);
+
+function showCaption(idx) {
+  // captions are embedded in each slide's bottomInfo — no-op
+}
+
+// Flicker only the currently visible card
+function flickerLoop() {
   if (state !== "FEED") return;
   var d = cardData[currentCardIndex];
   if (d) {
     d.frame++;
-    if (d.frame % 10 === 0) {
-      renderGrid(d.grid, d.canvas, d.cols, d.rows, d.cw, d.ch, d.frame);
-    }
+    if (d.frame % 8 === 0) renderGrid(d.grid, d.canvas, d.cols, d.rows, d.cw, d.ch, d.frame);
   }
-  requestAnimationFrame(animateCards);
+  requestAnimationFrame(flickerLoop);
 }
 
-// ============================================================
-// AUTOSCROLL — smooth snap to next image every N ms
-// ============================================================
-function scrollFeed() {
+// Slide the track up by one full viewport height — exactly like TikTok
+function advanceCard() {
   if (state !== "FEED") return;
+
   var elapsed = Date.now() - feedStartTime;
-  var imagesPerScroll = 3000; // 3 sec per image
-  var nextCardIdx = Math.floor(elapsed / imagesPerScroll);
 
-  // Update card display
-  if (nextCardIdx !== currentCardIndex && nextCardIdx < cardData.length) {
-    cardData[currentCardIndex].canvas.style.display = "none";
-    currentCardIndex = nextCardIdx;
-    cardData[currentCardIndex].canvas.style.display = "block";
-    updateCaption(currentCardIndex);
-  }
-
+  // Progress bar
   var bar = document.getElementById("fp");
   if (bar) bar.style.width = (Math.min(elapsed / feedDuration, 1) * 100) + "%";
 
-  if (elapsed >= feedDuration || currentCardIndex >= cardData.length) {
+  // End of feed or time up
+  if (currentCardIndex >= cardData.length - 1 || elapsed >= feedDuration) {
     cleanupFeed();
     state = "GOODBYE"; stateTimer = millis(); goodbyeTimer = millis();
-    var cnv = document.querySelector("canvas");
-    if (cnv) cnv.style.display = "block";
+    var p5cnv = document.querySelector("canvas");
+    if (p5cnv) { p5cnv.style.display = ""; p5cnv.style.visibility = ""; }
     return;
   }
-  feedAnimFrame = requestAnimationFrame(scrollFeed);
+
+  currentCardIndex++;
+  var vh = window.innerHeight;
+
+  var ftrack = document.getElementById("ftrack");
+  if (ftrack) {
+    ftrack.style.transition = "transform 0.55s cubic-bezier(0.4,0,0.2,1)";
+    ftrack.style.transform = "translateY(-" + (currentCardIndex * vh) + "px)";
+  }
+
+  feedAnimFrame = setTimeout(advanceCard, 3000);
 }
 
 function cleanupFeed() {
-  if (feedAnimFrame) cancelAnimationFrame(feedAnimFrame);
+  if (feedAnimFrame) clearTimeout(feedAnimFrame);
+  feedAnimFrame = null;
+  for (var i = 0; i < likeCounters.length; i++) clearTimeout(likeCounters[i]);
+  likeCounters = [];
   cardData = [];
-  var ids = ["fc","fp","fpop","fcap"];
+  var ids = ["fc","fp","fpop","fxbtn","feedkf"];
   for (var i = 0; i < ids.length; i++) {
     var el = document.getElementById(ids[i]);
     if (el) el.remove();
-  }
-  // Also remove X button
-  var btns = document.querySelectorAll("div");
-  for (var i = 0; i < btns.length; i++) {
-    if (btns[i].innerHTML === "\u2715" && btns[i].style.position === "fixed") btns[i].remove();
   }
 }
 

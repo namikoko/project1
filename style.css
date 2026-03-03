@@ -23,3 +23,23 @@ canvas {
   top: 0;
   left: 0;
 }
+
+canvas.feed-card {
+  position: static !important;
+  top: auto !important;
+  left: auto !important;
+  display: block !important;
+}
+
+canvas.feed-card {
+  position: static !important;
+  top: auto !important;
+  left: auto !important;
+}
+
+/* feed ascii canvases must NOT be position:fixed */
+canvas.feed-card {
+  position: static !important;
+  top: auto !important;
+  left: auto !important;
+}
