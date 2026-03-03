@@ -21,7 +21,7 @@ var fakeCursorVisible=false;
 var cursorAnimStart=0;
 var feedContainer;
 var feedStartTime=0;
-var feedDuration=60000;
+var feedDuration=30000;
 var feedBuilt=false;
 var feedScrollY=0;
 var goodbyeTimer=0;
@@ -281,9 +281,17 @@ function drawTyping() {
 }
 function onSubmit() {
   if (state !== "TYPING") return;
-  userText = inputField.value().trim();
-  if (userText.length < 3) userText = "I felt something I can't really describe. It was weird and kind of beautiful.";
-  systemText = buildSystemText(userText);
+  // Immediately lock state so this can never fire twice
+  state = "TAKEOVER";
+  submitBtn.mousePressed(function(){}); // replace p5 binding with no-op
+
+  var typed = inputField.value().trim();
+  // Use what's actually visible in the field as userText (what gets erased)
+  // If too short, use it as-is for the erase — fallback only affects systemText
+  userText = typed.length > 0 ? typed : "ok";
+  var textForSystem = typed.length >= 3 ? typed : "I felt something I can't really describe. It was weird and kind of beautiful.";
+  systemText = buildSystemText(textForSystem);
+  // Do NOT change inputField.elt.value here — it already shows exactly what user typed
   inputField.attribute("readonly","true");
   inputField.style("cursor","default");
   submitBtn.style("opacity","0.15");
@@ -291,7 +299,7 @@ function onSubmit() {
   takeoverPhase = "ERASE";
   takeoverCharIndex = userText.length;
   takeoverTimer = millis();
-  state = "TAKEOVER"; stateTimer = millis();
+  stateTimer = millis();
 }
 
 // ============================================================
@@ -305,8 +313,14 @@ function drawTakeover() {
     text("REFINING RESPONSE", width/2, height/2-80);
     if (now - takeoverTimer > eraseSpeed) {
       takeoverTimer = now;
-      if (takeoverCharIndex > 0) { takeoverCharIndex--; inputField.elt.value = userText.substring(0,takeoverCharIndex) + "\u258C"; }
-      else { inputField.elt.value = "\u258C"; takeoverPhase = "WAIT"; takeoverTimer = now; }
+      if (takeoverCharIndex > 0) {
+        takeoverCharIndex--;
+        inputField.elt.value = userText.substring(0, takeoverCharIndex) + "\u258C";
+      } else {
+        inputField.elt.value = "\u258C";
+        takeoverPhase = "WAIT";
+        takeoverTimer = now;
+      }
     }
   } else if (takeoverPhase === "WAIT") {
     text("REFINING RESPONSE", width/2, height/2-80);
@@ -322,6 +336,7 @@ function drawTakeover() {
   } else if (takeoverPhase === "PAUSE_BEFORE_CURSOR") {
     text("OPTIMIZED OUTPUT", width/2, height/2-80);
     if (now - takeoverTimer > 1000) {
+      // Show button visually but ensure it can never be clicked (no-op handler already set in onSubmit)
       submitBtn.style("display","block"); submitBtn.style("opacity","1"); submitBtn.style("pointer-events","none");
       fakeCursorStartX = width/2; fakeCursorStartY = height/2 + 80;
       fakeCursorTargetX = width/2; fakeCursorTargetY = height/2 + 129;
@@ -427,7 +442,7 @@ function imageToAsciiGrid(img, cols, rows) {
   return grid;
 }
 
-// Render grid to canvas with dynamic drifting characters
+// Render grid to canvas with subtle drifting characters — readable but alive
 function renderGrid(grid, canvas, cols, rows, cw, ch, frame) {
   var ctx = canvas.getContext("2d");
   var s = 2;
@@ -444,25 +459,19 @@ function renderGrid(grid, canvas, cols, rows, cw, ch, frame) {
       var baseIdx = DENSE_CHARS.indexOf(baseChar);
       if (baseIdx < 0) baseIdx = dlen - 3;
 
-      // Per-cell phase so each character drifts independently
-      var phase = (r * 7 + c * 13 + frame) * 0.07;
-      // How far the character can drift — wider drift in mid-tones
-      var midness = 1 - Math.abs((baseIdx / (dlen - 1)) - 0.5) * 2;
-      var driftRange = Math.floor(1 + midness * 3);
-      // Drift oscillates with a mix of frequencies so it feels organic
-      var drift = Math.round(
-        Math.sin(phase) * driftRange +
-        Math.sin(phase * 2.3 + 1.1) * (driftRange * 0.5) +
-        (Math.random() < 0.04 ? (Math.random() - 0.5) * 4 : 0) // occasional hard jump
-      );
-      var ci = Math.max(0, Math.min(dlen - 1, baseIdx + drift));
+      // Slow independent per-cell drift — max ±1 step so image stays readable
+      var phase = (r * 7 + c * 13 + frame) * 0.018;
+      var drift = Math.sin(phase) + Math.sin(phase * 1.7 + 0.9) * 0.5;
+      // Only cross a character boundary when drift exceeds 0.75
+      var driftStep = Math.abs(drift) > 0.75 ? (drift > 0 ? 1 : -1) : 0;
+      var ci = Math.max(0, Math.min(dlen - 1, baseIdx + driftStep));
       var ch2 = DENSE_CHARS.charAt(ci);
       if (ch2 === " ") ch2 = DENSE_CHARS.charAt(Math.max(0, ci - 1));
 
-      // Brightness flicker — more pronounced for mid-tones
-      var flicker = 0.82 + Math.random() * 0.18;
-      var shimmer = Math.sin(frame * 0.06 + r * 0.35 + c * 0.22) * 0.07;
-      var a = Math.max(0.07, Math.min(0.95, flicker + shimmer));
+      // Gentle brightness flicker — keeps contrast high
+      var flicker = 0.88 + Math.random() * 0.12;
+      var shimmer = Math.sin(frame * 0.04 + r * 0.3 + c * 0.2) * 0.04;
+      var a = Math.max(0.1, Math.min(0.96, flicker + shimmer));
       ctx.fillStyle = "rgba(0,0,0," + a.toFixed(2) + ")";
       ctx.fillText(ch2, c * cw * s, r * ch * s);
     }
@@ -477,6 +486,14 @@ var cardData = [];
 var currentCardIndex = 0;
 var isScrolling = false;
 var likeCounters = []; // live like counter timeouts
+
+var AD_MESSAGES = [
+  ["your attention has been sold", "ad · optimized for you"],
+  ["this message was purchased", "ad · data-matched to your profile"],
+  ["you were predicted to stop here", "sponsored · behavioral targeting active"],
+  ["your scroll pattern triggered this", "ad · engagement probability: 94%"],
+  ["this interruption was scheduled", "ad · your attention is the product"],
+];
 
 var USERNAMES = [
   "@user_38291","@xo_content","@real.human.38","@not_a_bot_lol",
@@ -698,6 +715,97 @@ function buildFeedDOM() {
         likeNum: likeNum, cmtNum: cmtNum, viewCount: viewCount,
         nums: cardNums
       });
+
+      // Insert an ad slide after every 3 content posts
+      if ((cardData.length) % 3 === 0) {
+        var adIdx = Math.floor(cardData.length / 3 - 1) % AD_MESSAGES.length;
+        var adMsg = AD_MESSAGES[adIdx];
+        var isStillWatching = (adIdx === 0); // first ad is always the "still watching" one
+
+        var adSlide = document.createElement("div");
+        adSlide.style.cssText = "width:100%;height:"+vh+"px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0a0a0a;flex-shrink:0;position:relative;gap:0;";
+
+        if (isStillWatching) {
+          // ── ARE YOU STILL WATCHING? — Netflix-style interstitial ──
+          var stillBg = document.createElement("div");
+          stillBg.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;background:linear-gradient(to bottom,rgba(0,0,0,0.4) 0%,rgba(0,0,0,0.85) 100%);";
+          adSlide.appendChild(stillBg);
+
+          var stillBox = document.createElement("div");
+          stillBox.style.cssText = "position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:18px;text-align:center;padding:40px 36px;border:1px solid rgba(255,255,255,0.08);background:rgba(20,20,20,0.92);max-width:340px;";
+
+          var stillTitle = document.createElement("div");
+          stillTitle.style.cssText = "font-size:22px;color:#fff;font-family:'Schibsted Grotesk',sans-serif;font-weight:700;letter-spacing:0.01em;line-height:1.2;";
+          stillTitle.textContent = "are you still watching?";
+
+          var stillSub = document.createElement("div");
+          stillSub.style.cssText = "font-size:11px;color:rgba(255,255,255,0.45);font-family:'Schibsted Grotesk',sans-serif;letter-spacing:0.05em;line-height:1.6;";
+          stillSub.textContent = "your session is being monitored\ncontinued viewing confirms consent";
+          stillSub.style.whiteSpace = "pre-line";
+
+          var stillBtns = document.createElement("div");
+          stillBtns.style.cssText = "display:flex;gap:12px;margin-top:6px;";
+
+          var btnYes = document.createElement("div");
+          btnYes.style.cssText = "padding:10px 28px;background:#fff;color:#000;font-size:11px;font-family:'Schibsted Grotesk',sans-serif;letter-spacing:0.1em;cursor:pointer;font-weight:600;";
+          btnYes.textContent = "YES, CONTINUE";
+
+          var btnNo = document.createElement("div");
+          btnNo.style.cssText = "padding:10px 28px;background:transparent;color:rgba(255,255,255,0.4);font-size:11px;font-family:'Schibsted Grotesk',sans-serif;letter-spacing:0.1em;cursor:pointer;border:1px solid rgba(255,255,255,0.15);";
+          btnNo.textContent = "EXIT";
+
+          // Both buttons do nothing (can't leave)
+          btnNo.onclick = function() {
+            btnNo.textContent = "exit is not available";
+            btnNo.style.color = "rgba(255,255,255,0.2)";
+            btnNo.style.borderColor = "rgba(255,255,255,0.05)";
+          };
+
+          var stillNote = document.createElement("div");
+          stillNote.style.cssText = "font-size:8px;color:rgba(255,255,255,0.15);font-family:'Schibsted Grotesk',sans-serif;letter-spacing:0.08em;margin-top:4px;";
+          stillNote.textContent = "session id: " + Math.floor(Math.random()*900000+100000) + " · data retained";
+
+          stillBtns.appendChild(btnYes);
+          stillBtns.appendChild(btnNo);
+          stillBox.appendChild(stillTitle);
+          stillBox.appendChild(stillSub);
+          stillBox.appendChild(stillBtns);
+          stillBox.appendChild(stillNote);
+          adSlide.appendChild(stillBox);
+
+        } else {
+          // ── GENERIC AD CARD ──
+          adSlide.style.background = "#fff";
+          var adTag = document.createElement("div");
+          adTag.style.cssText = "font-size:8px;letter-spacing:0.18em;color:rgba(0,0,0,0.18);font-family:'Schibsted Grotesk',sans-serif;border:1px solid rgba(0,0,0,0.1);padding:3px 10px;margin-bottom:16px;";
+          adTag.textContent = "SPONSORED";
+
+          var adLine1 = document.createElement("div");
+          adLine1.style.cssText = "font-size:18px;color:rgba(0,0,0,0.55);font-family:'Schibsted Grotesk',sans-serif;letter-spacing:0.04em;text-align:center;max-width:280px;line-height:1.4;";
+          adLine1.textContent = adMsg[0];
+
+          var adLine2 = document.createElement("div");
+          adLine2.style.cssText = "font-size:9px;color:rgba(0,0,0,0.2);font-family:'Schibsted Grotesk',sans-serif;letter-spacing:0.08em;margin-top:10px;";
+          adLine2.textContent = adMsg[1];
+
+          adSlide.appendChild(adTag);
+          adSlide.appendChild(adLine1);
+          adSlide.appendChild(adLine2);
+        }
+
+        ftrack.appendChild(adSlide);
+
+        // Push dummy entry so currentCardIndex stays in sync
+        cardData.push({
+          grid: null, canvas: null, slide: adSlide,
+          cols: 0, rows: 0, cw: 0, ch: 0,
+          frame: 0, caption: "", username: "",
+          likeNum: { textContent:"", style:{} },
+          cmtNum: { textContent:"", style:{} },
+          viewCount: { textContent:"", style:{} },
+          nums: { likes: 0, comments: 0, shares: 0, viewers: 0 }
+        });
+      }
     }
 
     if (cardData.length === 0) return;
@@ -753,7 +861,8 @@ function startLiveCounters() {
   function tick() {
     if (state !== "FEED") return;
     var d = cardData[currentCardIndex];
-    if (!d) { likeCounters.push(setTimeout(tick, 500)); return; }
+    // skip ad cards (no canvas)
+    if (!d || !d.canvas) { likeCounters.push(setTimeout(tick, 500)); return; }
 
     // viewer count — always updates
     var vDelta = Math.floor(Math.random()*120) - 40;
@@ -807,7 +916,7 @@ function showCaption(idx) {
 function flickerLoop() {
   if (state !== "FEED") return;
   var d = cardData[currentCardIndex];
-  if (d) {
+  if (d && d.canvas) {
     d.frame++;
     renderGrid(d.grid, d.canvas, d.cols, d.rows, d.cw, d.ch, d.frame);
   }
@@ -845,7 +954,7 @@ function advanceCard() {
   // Burst of number activity right as the new card lands
   setTimeout(function() {
     var d = cardData[currentCardIndex];
-    if (!d) return;
+    if (!d || !d.canvas) return;
     d.nums.likes += Math.floor(Math.random()*8 + 2);
     bumpNum(d.likeNum, d.nums.likes + "K");
     d.nums.viewers += Math.floor(Math.random()*300 + 50);
