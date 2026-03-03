@@ -723,50 +723,50 @@ function buildFeedDOM() {
         var isStillWatching = (adIdx === 0); // first ad is always the "still watching" one
 
         var adSlide = document.createElement("div");
-        adSlide.style.cssText = "width:100%;height:"+vh+"px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0a0a0a;flex-shrink:0;position:relative;gap:0;";
+        adSlide.style.cssText = "width:100%;height:"+vh+"px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;flex-shrink:0;position:relative;gap:0;";
 
         if (isStillWatching) {
-          // ── ARE YOU STILL WATCHING? — Netflix-style interstitial ──
-          var stillBg = document.createElement("div");
-          stillBg.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;background:linear-gradient(to bottom,rgba(0,0,0,0.4) 0%,rgba(0,0,0,0.85) 100%);";
-          adSlide.appendChild(stillBg);
-
+          // ── ARE YOU STILL WATCHING? — light aesthetic interstitial ──
           var stillBox = document.createElement("div");
-          stillBox.style.cssText = "position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:18px;text-align:center;padding:40px 36px;border:1px solid rgba(255,255,255,0.08);background:rgba(20,20,20,0.92);max-width:340px;";
+          stillBox.style.cssText = "display:flex;flex-direction:column;align-items:center;gap:18px;text-align:center;padding:44px 40px;border:1px solid rgba(0,0,0,0.08);background:#fff;max-width:340px;";
+
+          var stillTag = document.createElement("div");
+          stillTag.style.cssText = "font-size:8px;letter-spacing:0.18em;color:rgba(0,0,0,0.18);font-family:'Schibsted Grotesk',sans-serif;border:1px solid rgba(0,0,0,0.1);padding:3px 10px;";
+          stillTag.textContent = "SESSION ALERT";
 
           var stillTitle = document.createElement("div");
-          stillTitle.style.cssText = "font-size:22px;color:#fff;font-family:'Schibsted Grotesk',sans-serif;font-weight:700;letter-spacing:0.01em;line-height:1.2;";
+          stillTitle.style.cssText = "font-size:22px;color:rgba(0,0,0,0.75);font-family:'Schibsted Grotesk',sans-serif;font-weight:700;letter-spacing:0.01em;line-height:1.2;";
           stillTitle.textContent = "are you still watching?";
 
           var stillSub = document.createElement("div");
-          stillSub.style.cssText = "font-size:11px;color:rgba(255,255,255,0.45);font-family:'Schibsted Grotesk',sans-serif;letter-spacing:0.05em;line-height:1.6;";
+          stillSub.style.cssText = "font-size:11px;color:rgba(0,0,0,0.35);font-family:'Schibsted Grotesk',sans-serif;letter-spacing:0.04em;line-height:1.7;";
           stillSub.textContent = "your session is being monitored\ncontinued viewing confirms consent";
           stillSub.style.whiteSpace = "pre-line";
 
           var stillBtns = document.createElement("div");
-          stillBtns.style.cssText = "display:flex;gap:12px;margin-top:6px;";
+          stillBtns.style.cssText = "display:flex;gap:12px;margin-top:4px;";
 
           var btnYes = document.createElement("div");
-          btnYes.style.cssText = "padding:10px 28px;background:#fff;color:#000;font-size:11px;font-family:'Schibsted Grotesk',sans-serif;letter-spacing:0.1em;cursor:pointer;font-weight:600;";
+          btnYes.style.cssText = "padding:10px 28px;background:rgba(0,0,0,0.75);color:#fff;font-size:11px;font-family:'Schibsted Grotesk',sans-serif;letter-spacing:0.1em;cursor:pointer;font-weight:600;";
           btnYes.textContent = "YES, CONTINUE";
 
           var btnNo = document.createElement("div");
-          btnNo.style.cssText = "padding:10px 28px;background:transparent;color:rgba(255,255,255,0.4);font-size:11px;font-family:'Schibsted Grotesk',sans-serif;letter-spacing:0.1em;cursor:pointer;border:1px solid rgba(255,255,255,0.15);";
+          btnNo.style.cssText = "padding:10px 28px;background:transparent;color:rgba(0,0,0,0.3);font-size:11px;font-family:'Schibsted Grotesk',sans-serif;letter-spacing:0.1em;cursor:pointer;border:1px solid rgba(0,0,0,0.1);";
           btnNo.textContent = "EXIT";
 
-          // Both buttons do nothing (can't leave)
           btnNo.onclick = function() {
             btnNo.textContent = "exit is not available";
-            btnNo.style.color = "rgba(255,255,255,0.2)";
-            btnNo.style.borderColor = "rgba(255,255,255,0.05)";
+            btnNo.style.color = "rgba(0,0,0,0.12)";
+            btnNo.style.borderColor = "rgba(0,0,0,0.04)";
           };
 
           var stillNote = document.createElement("div");
-          stillNote.style.cssText = "font-size:8px;color:rgba(255,255,255,0.15);font-family:'Schibsted Grotesk',sans-serif;letter-spacing:0.08em;margin-top:4px;";
+          stillNote.style.cssText = "font-size:8px;color:rgba(0,0,0,0.15);font-family:'Schibsted Grotesk',sans-serif;letter-spacing:0.08em;margin-top:2px;";
           stillNote.textContent = "session id: " + Math.floor(Math.random()*900000+100000) + " · data retained";
 
           stillBtns.appendChild(btnYes);
           stillBtns.appendChild(btnNo);
+          stillBox.appendChild(stillTag);
           stillBox.appendChild(stillTitle);
           stillBox.appendChild(stillSub);
           stillBox.appendChild(stillBtns);
@@ -819,7 +819,7 @@ function buildFeedDOM() {
 
     requestAnimationFrame(flickerLoop);
     startLiveCounters();
-    feedAnimFrame = setTimeout(advanceCard, 3000);
+    feedAnimFrame = setTimeout(advanceCard, nextDelay());
   });
 }
 
@@ -831,7 +831,9 @@ function injectFeedStyles() {
     "@keyframes spinDisc { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }",
     "@keyframes pulseDot { 0%,100%{opacity:0.3;transform:scale(1)} 50%{opacity:1;transform:scale(1.4)} }",
     "@keyframes numBounce { 0%{transform:translateY(0)} 30%{transform:translateY(-5px)} 60%{transform:translateY(2px)} 100%{transform:translateY(0)} }",
-    "@keyframes heartFloat { 0%{opacity:1;transform:translateY(0) scale(1)} 100%{opacity:0;transform:translateY(-120px) scale(1.6)} }"
+    "@keyframes heartFloat { 0%{opacity:1;transform:translateY(0) scale(1)} 100%{opacity:0;transform:translateY(-120px) scale(1.6)} }",
+    "@keyframes glitchPop { 0%{opacity:0;transform:scale(1.18) skewX(-3deg)} 8%{opacity:1;transform:scale(1.04) skewX(1deg)} 80%{opacity:1;transform:scale(1) skewX(0deg)} 100%{opacity:0;transform:scale(0.96)} }",
+    "@keyframes glitchShake { 0%,100%{transform:translate(0,0)} 20%{transform:translate(-6px,3px)} 40%{transform:translate(8px,-4px)} 60%{transform:translate(-4px,6px)} 80%{transform:translate(5px,-2px)} }"
   ].join("\n");
   document.head.appendChild(s);
 }
@@ -923,6 +925,18 @@ function flickerLoop() {
   requestAnimationFrame(flickerLoop);
 }
 
+// Returns ms to wait before advancing to next card — accelerates over time
+function nextDelay() {
+  // Gradual ramp: 1800ms → 120ms spread over 18 cards
+  // quadratic ease-in: perceptibly slow for first ~6 cards, then steadily drops
+  var base = 1800;
+  var floor = 120;
+  var rampOver = 18;
+  var t = Math.min(currentCardIndex / rampOver, 1);
+  var eased = t * t;
+  return Math.round(base - (base - floor) * eased);
+}
+
 // Slide the track up by one full viewport height — exactly like TikTok
 function advanceCard() {
   if (state !== "FEED") return;
@@ -933,21 +947,22 @@ function advanceCard() {
   var bar = document.getElementById("fp");
   if (bar) bar.style.width = (Math.min(elapsed / feedDuration, 1) * 100) + "%";
 
-  // End of feed or time up
+  // End of feed or time up → trigger glitch eruption then GOODBYE
   if (currentCardIndex >= cardData.length - 1 || elapsed >= feedDuration) {
-    cleanupFeed();
-    state = "GOODBYE"; stateTimer = millis(); goodbyeTimer = millis();
-    var p5cnv = document.querySelector("canvas");
-    if (p5cnv) { p5cnv.style.display = ""; p5cnv.style.visibility = ""; }
+    triggerGlitchEruption();
     return;
   }
 
   currentCardIndex++;
   var vh = window.innerHeight;
 
+  // Scroll transition speed also accelerates — snappier at high speed
+  var delay = nextDelay();
+  var transMs = Math.max(120, Math.min(550, delay * 0.55));
+
   var ftrack = document.getElementById("ftrack");
   if (ftrack) {
-    ftrack.style.transition = "transform 0.55s cubic-bezier(0.4,0,0.2,1)";
+    ftrack.style.transition = "transform " + (transMs/1000).toFixed(2) + "s cubic-bezier(0.4,0,0.2,1)";
     ftrack.style.transform = "translateY(-" + (currentCardIndex * vh) + "px)";
   }
 
@@ -959,9 +974,104 @@ function advanceCard() {
     bumpNum(d.likeNum, d.nums.likes + "K");
     d.nums.viewers += Math.floor(Math.random()*300 + 50);
     d.viewCount.textContent = d.nums.viewers.toLocaleString() + " watching";
-  }, 600);
+  }, Math.min(600, delay * 0.7));
 
-  feedAnimFrame = setTimeout(advanceCard, 3000);
+  feedAnimFrame = setTimeout(advanceCard, delay);
+}
+
+// ── Glitch eruption: ad slides violently pop over the screen then GOODBYE ──
+function triggerGlitchEruption() {
+  if (feedAnimFrame) clearTimeout(feedAnimFrame);
+  feedAnimFrame = null;
+
+  // Collect all ad slide DOM nodes
+  var adSlides = [];
+  for (var i = 0; i < cardData.length; i++) {
+    if (!cardData[i].canvas && cardData[i].slide) adSlides.push(cardData[i].slide);
+  }
+  if (adSlides.length === 0) {
+    // No ads — just end immediately
+    _endFeedToGoodbye();
+    return;
+  }
+
+  // Create a full-screen eruption layer on top of everything
+  var eruptLayer = document.createElement("div");
+  eruptLayer.id = "ferupt";
+  eruptLayer.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;z-index:999999;pointer-events:none;overflow:hidden;";
+  document.body.appendChild(eruptLayer);
+
+  var totalFlashes = 14 + adSlides.length * 2; // feels overwhelming
+  var flashCount = 0;
+  var baseInterval = 160;
+
+  function fireFlash() {
+    if (flashCount >= totalFlashes) {
+      // Done — clear layer, go GOODBYE
+      setTimeout(function() {
+        eruptLayer.remove();
+        _endFeedToGoodbye();
+      }, 350);
+      return;
+    }
+
+    // Pick a random ad slide to clone
+    var src = adSlides[Math.floor(Math.random() * adSlides.length)];
+    var clone = src.cloneNode(true);
+
+    // Random dramatic sizing & position — offset from true screen center
+    var scale = 0.85 + Math.random() * 0.6;          // 0.85x – 1.45x
+    var tx = (Math.random() - 0.5) * 120;             // ±60px horizontal from center
+    var ty = (Math.random() - 0.5) * 100;             // ±50px vertical from center
+    var rot = (Math.random() - 0.5) * 8;              // ±4deg tilt
+
+    // position:fixed so it fills the viewport regardless of scroll/track position
+    clone.style.cssText = [
+      "position:fixed;top:0;left:0;width:100%;height:100%;",
+      "display:flex;align-items:center;justify-content:center;",
+      "transform-origin:50% 50%;",
+      "transform:translate(" + tx + "px," + ty + "px) scale(" + scale + ") rotate(" + rot + "deg);",
+      "animation:glitchPop " + (0.32 + Math.random() * 0.22) + "s ease-out forwards;",
+      "pointer-events:none;box-sizing:border-box;"
+    ].join("");
+
+    // Chromatic noise: random colour tint overlay
+    var tints = ["rgba(255,0,60,0.07)","rgba(0,200,255,0.06)","rgba(255,220,0,0.05)","rgba(0,0,0,0)"];
+    var tint = tints[Math.floor(Math.random()*tints.length)];
+    clone.style.background = clone.style.background || "#fff";
+    clone.style.filter = "contrast(" + (1.05 + Math.random()*0.15) + ")";
+    clone.style.mixBlendMode = "normal";
+
+    // Tint overlay child
+    var tintDiv = document.createElement("div");
+    tintDiv.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;background:" + tint + ";pointer-events:none;";
+    clone.appendChild(tintDiv);
+
+    eruptLayer.appendChild(clone);
+
+    // Remove clone after animation
+    var lifespan = 600 + Math.random() * 300;
+    setTimeout(function(){ clone.remove(); }, lifespan);
+
+    flashCount++;
+    // Intervals get shorter as it escalates
+    var nextInterval = Math.max(45, baseInterval - flashCount * 10);
+    feedAnimFrame = setTimeout(fireFlash, nextInterval);
+  }
+
+  // Shake the whole eruption layer
+  eruptLayer.style.animation = "glitchShake 0.12s linear infinite";
+
+  fireFlash();
+}
+
+function _endFeedToGoodbye() {
+  cleanupFeed();
+  var erupt = document.getElementById("ferupt");
+  if (erupt) erupt.remove();
+  state = "GOODBYE"; stateTimer = millis(); goodbyeTimer = millis();
+  var p5cnv = document.querySelector("canvas");
+  if (p5cnv) { p5cnv.style.display = ""; p5cnv.style.visibility = ""; }
 }
 
 function cleanupFeed() {
@@ -994,6 +1104,8 @@ function showXPopup() {
 // ============================================================
 // GOODBYE
 // ============================================================
+var goodbyeEndBtn = null;
+
 function drawGoodbye() {
   background(255);
   var elapsed = millis() - goodbyeTimer;
@@ -1001,6 +1113,46 @@ function drawGoodbye() {
   textFont("Schibsted Grotesk"); textAlign(CENTER, CENTER); noStroke();
   fill(0, fadeIn * 0.35 * 255); textSize(max(13, min(width,height) * 0.018));
   text("see you soon", width/2, height/2);
+
+  // Show the end button after the text has fully faded in
+  if (fadeIn >= 1 && !goodbyeEndBtn) {
+    goodbyeEndBtn = document.createElement("button");
+    goodbyeEndBtn.textContent = "end";
+    goodbyeEndBtn.style.cssText = [
+      "position:fixed;left:50%;bottom:48px;transform:translateX(-50%);",
+      "background:none;border:none;border-bottom:1px solid rgba(0,0,0,0.25);",
+      "font-family:'Schibsted Grotesk',sans-serif;font-size:11px;",
+      "letter-spacing:0.12em;color:rgba(0,0,0,0.3);cursor:pointer;",
+      "padding:2px 0;opacity:0;transition:opacity 0.8s ease;"
+    ].join("");
+    goodbyeEndBtn.onclick = function() { window.location.href = "index.html"; };
+    document.body.appendChild(goodbyeEndBtn);
+    // small delay so the CSS transition fires
+    setTimeout(function(){ if (goodbyeEndBtn) goodbyeEndBtn.style.opacity = "1"; }, 30);
+  }
+}
+
+function restartFromBeginning() {
+  // Remove end button
+  if (goodbyeEndBtn) { goodbyeEndBtn.remove(); goodbyeEndBtn = null; }
+  // Reset input field
+  inputField.elt.value = "";
+  inputField.elt.removeAttribute("readonly");
+  inputField.style("cursor", "text");
+  inputField.style("opacity", "0");
+  inputField.style("display", "none");
+  submitBtn.style("opacity", "0");
+  submitBtn.style("display", "none");
+  submitBtn.style("pointer-events", "auto");
+  // Re-bind submit button
+  submitBtn.mousePressed(onSubmit);
+  // Reset state vars
+  userText = "";
+  systemText = "";
+  takeoverPhase = "";
+  // Go back to TITLE
+  state = "TITLE";
+  stateTimer = millis();
 }
 
 // ============================================================
