@@ -427,7 +427,7 @@ function imageToAsciiGrid(img, cols, rows) {
   return grid;
 }
 
-// Render grid to canvas with flicker
+// Render grid to canvas with dynamic drifting characters
 function renderGrid(grid, canvas, cols, rows, cw, ch, frame) {
   var ctx = canvas.getContext("2d");
   var s = 2;
@@ -436,14 +436,35 @@ function renderGrid(grid, canvas, cols, rows, cw, ch, frame) {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.font = (ch * s) + "px monospace";
   ctx.textBaseline = "top";
+  var dlen = DENSE_CHARS.length;
   for (var r = 0; r < rows; r++) {
     for (var c = 0; c < cols; c++) {
-      if (grid[r][c] === " ") continue;
-      var flicker = 0.85 + Math.random() * 0.15;
-      var shimmer = Math.sin(frame * 0.05 + r * 0.4 + c * 0.25) * 0.06;
-      var a = Math.max(0.08, Math.min(0.92, flicker + shimmer));
+      var baseChar = grid[r][c];
+      if (baseChar === " ") continue;
+      var baseIdx = DENSE_CHARS.indexOf(baseChar);
+      if (baseIdx < 0) baseIdx = dlen - 3;
+
+      // Per-cell phase so each character drifts independently
+      var phase = (r * 7 + c * 13 + frame) * 0.07;
+      // How far the character can drift — wider drift in mid-tones
+      var midness = 1 - Math.abs((baseIdx / (dlen - 1)) - 0.5) * 2;
+      var driftRange = Math.floor(1 + midness * 3);
+      // Drift oscillates with a mix of frequencies so it feels organic
+      var drift = Math.round(
+        Math.sin(phase) * driftRange +
+        Math.sin(phase * 2.3 + 1.1) * (driftRange * 0.5) +
+        (Math.random() < 0.04 ? (Math.random() - 0.5) * 4 : 0) // occasional hard jump
+      );
+      var ci = Math.max(0, Math.min(dlen - 1, baseIdx + drift));
+      var ch2 = DENSE_CHARS.charAt(ci);
+      if (ch2 === " ") ch2 = DENSE_CHARS.charAt(Math.max(0, ci - 1));
+
+      // Brightness flicker — more pronounced for mid-tones
+      var flicker = 0.82 + Math.random() * 0.18;
+      var shimmer = Math.sin(frame * 0.06 + r * 0.35 + c * 0.22) * 0.07;
+      var a = Math.max(0.07, Math.min(0.95, flicker + shimmer));
       ctx.fillStyle = "rgba(0,0,0," + a.toFixed(2) + ")";
-      ctx.fillText(grid[r][c], c * cw * s, r * ch * s);
+      ctx.fillText(ch2, c * cw * s, r * ch * s);
     }
   }
 }
@@ -713,32 +734,48 @@ function showFeedOverlay(idx) {
 }
 
 // Animate live viewer counts on current card randomly
+function bumpNum(el, text) {
+  el.textContent = text;
+  // clone trick: remove and re-add class to restart CSS animation
+  el.style.transform = "translateY(-6px)";
+  el.style.transition = "transform 0.12s ease-out";
+  setTimeout(function(){
+    el.style.transform = "translateY(2px)";
+    el.style.transition = "transform 0.08s ease-in";
+    setTimeout(function(){
+      el.style.transform = "translateY(0)";
+      el.style.transition = "transform 0.1s ease-out";
+    }, 80);
+  }, 120);
+}
+
 function startLiveCounters() {
   function tick() {
     if (state !== "FEED") return;
     var d = cardData[currentCardIndex];
-    if (d && d.viewCount) {
-      var delta = Math.floor(Math.random()*80) - 30;
-      d.nums.viewers = Math.max(10, d.nums.viewers + delta);
-      d.viewCount.textContent = d.nums.viewers.toLocaleString() + " watching";
+    if (!d) { likeCounters.push(setTimeout(tick, 500)); return; }
+
+    // viewer count — always updates
+    var vDelta = Math.floor(Math.random()*120) - 40;
+    d.nums.viewers = Math.max(10, d.nums.viewers + vDelta);
+    d.viewCount.textContent = d.nums.viewers.toLocaleString() + " watching";
+
+    // likes — ~60% chance each tick
+    if (Math.random() < 0.6) {
+      d.nums.likes += Math.floor(Math.random()*4 + 1);
+      bumpNum(d.likeNum, d.nums.likes + "K");
     }
-    if (d && d.likeNum && Math.random() < 0.35) {
-      d.nums.likes += Math.floor(Math.random()*3);
-      d.likeNum.textContent = d.nums.likes + "K";
-      d.likeNum.style.animation = "none";
-      void d.likeNum.offsetWidth;
-      d.likeNum.style.animation = "numBounce 0.35s ease";
-    }
-    if (d && d.cmtNum && Math.random() < 0.18) {
+
+    // comments — ~30% chance
+    if (Math.random() < 0.3) {
       d.nums.comments += 1;
-      d.cmtNum.textContent = d.nums.comments + "";
-      d.cmtNum.style.animation = "none";
-      void d.cmtNum.offsetWidth;
-      d.cmtNum.style.animation = "numBounce 0.3s ease";
+      bumpNum(d.cmtNum, d.nums.comments + "");
     }
-    likeCounters.push(setTimeout(tick, 800 + Math.random()*700));
+
+    likeCounters.push(setTimeout(tick, 600 + Math.random()*600));
   }
-  likeCounters.push(setTimeout(tick, 1200));
+  // start immediately
+  likeCounters.push(setTimeout(tick, 400));
 }
 
 // Float a heart up from the right action bar area
@@ -766,13 +803,13 @@ function showCaption(idx) {
   // captions are embedded in each slide's bottomInfo — no-op
 }
 
-// Flicker only the currently visible card
+// Flicker only the currently visible card — every frame for live character drift
 function flickerLoop() {
   if (state !== "FEED") return;
   var d = cardData[currentCardIndex];
   if (d) {
     d.frame++;
-    if (d.frame % 8 === 0) renderGrid(d.grid, d.canvas, d.cols, d.rows, d.cw, d.ch, d.frame);
+    renderGrid(d.grid, d.canvas, d.cols, d.rows, d.cw, d.ch, d.frame);
   }
   requestAnimationFrame(flickerLoop);
 }
@@ -804,6 +841,16 @@ function advanceCard() {
     ftrack.style.transition = "transform 0.55s cubic-bezier(0.4,0,0.2,1)";
     ftrack.style.transform = "translateY(-" + (currentCardIndex * vh) + "px)";
   }
+
+  // Burst of number activity right as the new card lands
+  setTimeout(function() {
+    var d = cardData[currentCardIndex];
+    if (!d) return;
+    d.nums.likes += Math.floor(Math.random()*8 + 2);
+    bumpNum(d.likeNum, d.nums.likes + "K");
+    d.nums.viewers += Math.floor(Math.random()*300 + 50);
+    d.viewCount.textContent = d.nums.viewers.toLocaleString() + " watching";
+  }, 600);
 
   feedAnimFrame = setTimeout(advanceCard, 3000);
 }
