@@ -8,8 +8,22 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <audio id="bgm" src="Sound/backgroundmusic.mp3" loop></audio>
   <div id="canvas-container"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script>
+    var bgm = document.getElementById("bgm");
+    bgm.volume = 0.5;
+    bgm.play().catch(function(){
+      document.addEventListener("click", function u(){ bgm.play(); document.removeEventListener("click", u); }, {once:true});
+    });
+    var clickSound = new Audio("Sound/select.mp3");
+    clickSound.volume = 0.4;
+    document.addEventListener("click", function(e){
+      var c = clickSound.cloneNode();
+      c.play().catch(function(){});
+    });
+  </script>
   <script src="level3.js"></script>
 </body>
 </html>

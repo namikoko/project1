@@ -21,6 +21,13 @@
         document.addEventListener("click", function u(){ a.play(); document.removeEventListener("click", u); }, {once:true});
       });
     })();
+    // Click sound for any user interaction
+    var clickSound = new Audio("Sound/select.mp3");
+    clickSound.volume = 0.4;
+    document.addEventListener("click", function(e){
+      var c = clickSound.cloneNode();
+      c.play().catch(function(){});
+    });
   </script>
   <script src="script.js"></script>
 </body>
