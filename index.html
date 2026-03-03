@@ -11,6 +11,17 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <audio id="bgm" src="Sound/backgroundmusic.mp3" loop preload="auto"></audio>
+  <script>
+    (function(){
+      var a = document.getElementById("bgm");
+      a.volume = 0.5;
+      var p = a.play();
+      if (p && p.catch) p.catch(function(){
+        document.addEventListener("click", function u(){ a.play(); document.removeEventListener("click", u); }, {once:true});
+      });
+    })();
+  </script>
   <script src="script.js"></script>
 </body>
 </html>
