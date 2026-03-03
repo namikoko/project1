@@ -830,12 +830,11 @@ function buildFeedDOM() {
     currentCardIndex = 0;
     showFeedOverlay(0);
 
-    // Final level background song
-    var finalSong = new Audio("Sound/final song.mp3");
-    finalSong.id = "finalsong";
-    finalSong.loop = true;
-    finalSong.volume = 0.5;
-    finalSong.play().catch(function(){});
+    // Reuse the bgm element already playing — no double-instance
+    var finalSong = document.getElementById("bgm");
+    if (finalSong) {
+      finalSong.volume = 0.5;
+    }
     window._finalSong = finalSong;
 
     requestAnimationFrame(flickerLoop);
@@ -1021,8 +1020,7 @@ function triggerGlitchEruption() {
     return;
   }
 
-  // Stop final song
-  if (window._finalSong) { window._finalSong.pause(); window._finalSong = null; }
+  // Stop final song — REMOVED: keep music playing through glitch and into GOODBYE
 
   // Create a full-screen eruption layer on top of everything
   var eruptLayer = document.createElement("div");
@@ -1125,7 +1123,8 @@ function _endFeedToGoodbye() {
 function cleanupFeed() {
   if (feedAnimFrame) clearTimeout(feedAnimFrame);
   feedAnimFrame = null;
-  if (window._finalSong) { window._finalSong.pause(); window._finalSong = null; }
+  // Don't pause the music — let it keep playing into the GOODBYE screen
+  window._finalSong = null;
   for (var i = 0; i < likeCounters.length; i++) clearTimeout(likeCounters[i]);
   likeCounters = [];
   cardData = [];
